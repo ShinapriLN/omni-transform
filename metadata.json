@@ -1,0 +1,5 @@
+{
+  "name": "OmniTransform",
+  "description": "A universal transformation platform capable of converting images between raster formats locally, and transforming raster images to vector (SVG) or text content using Gemini AI.",
+  "requestFramePermissions": []
+}
