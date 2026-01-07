@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { SUPPORTED_IMAGE_INPUTS, SUPPORTED_AUDIO_INPUTS } from '../constants';
 import { readFileAsBase64 } from '../utils/imageUtils';
 import { FileData, TransformMode } from '../types';
@@ -13,7 +13,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileSelect, mode }
 
   const supportedTypes = mode === TransformMode.IMAGE ? SUPPORTED_IMAGE_INPUTS : SUPPORTED_AUDIO_INPUTS;
 
-  const handleFile = async (file: File) => {
+  const handleFile = useCallback(async (file: File) => {
     if (!file) return;
     
     // Looser check for audio as MIME types vary wildly
@@ -40,7 +40,37 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileSelect, mode }
     } catch (e) {
       console.error("Error reading file", e);
     }
-  };
+  }, [mode, onFileSelect]);
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // 1. Check standard files list (OS file copy or Screenshot)
+      if (e.clipboardData && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        const file = e.clipboardData.files[0];
+        handleFile(file);
+        return;
+      }
+      
+      // 2. Check items (Copy Image from Browser)
+      if (e.clipboardData && e.clipboardData.items) {
+        for (let i = 0; i < e.clipboardData.items.length; i++) {
+          const item = e.clipboardData.items[i];
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+              e.preventDefault();
+              handleFile(file);
+              return;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handleFile]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -48,7 +78,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileSelect, mode }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
-  }, [mode]);
+  }, [handleFile]);
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -96,7 +126,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileSelect, mode }
         <h3 className="text-xl font-semibold text-gray-200 mb-2">
           Drop your {mode === TransformMode.IMAGE ? 'image' : 'audio'} here
         </h3>
-        <p className="text-gray-400 text-sm mb-6">or click to browse</p>
+        <p className="text-gray-400 text-sm mb-6">
+           click to browse <span className="text-gray-500">or Ctrl+V to paste</span>
+        </p>
         <span className="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
           {mode === TransformMode.IMAGE ? 'PNG, JPG, WEBP, BMP...' : 'MP3, WAV, FLAC, OGG...'}
         </span>

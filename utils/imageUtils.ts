@@ -174,7 +174,7 @@ export const convertRasterToRaster = async (
 
   ctx.drawImage(img, 0, 0);
 
-  if ([ImageFormat.BMP, ImageFormat.TIFF, ImageFormat.EPS, ImageFormat.RAW].includes(targetFormat)) {
+  if ([ImageFormat.BMP, ImageFormat.TIFF, ImageFormat.EPS, ImageFormat.RAW, ImageFormat.ICO].includes(targetFormat)) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let blob: Blob;
     switch (targetFormat) {
@@ -182,6 +182,50 @@ export const convertRasterToRaster = async (
       case ImageFormat.TIFF: blob = encodeTIFF(imageData); break;
       case ImageFormat.EPS: blob = encodeEPS(imageData); break;
       case ImageFormat.RAW: blob = encodeRAW(imageData); break;
+      case ImageFormat.ICO: {
+         // ICO Logic: Max size 256. Rescale if needed. Use PNG-in-ICO.
+         let finalCanvas = canvas;
+         if (canvas.width > 256 || canvas.height > 256) {
+            const ratio = Math.min(256 / canvas.width, 256 / canvas.height);
+            const newWidth = Math.floor(canvas.width * ratio);
+            const newHeight = Math.floor(canvas.height * ratio);
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = newWidth;
+            tempCanvas.height = newHeight;
+            const tCtx = tempCanvas.getContext('2d');
+            if (tCtx) tCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
+            finalCanvas = tempCanvas;
+         }
+
+         const pngDataUrl = finalCanvas.toDataURL('image/png');
+         const res = await fetch(pngDataUrl);
+         const pngBlob = await res.blob();
+         const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+
+         const header = new Uint8Array(22); // 6 header + 16 dir entry
+         const view = new DataView(header.buffer);
+         
+         // ICO Header
+         view.setUint16(0, 0, true);
+         view.setUint16(2, 1, true); // Type: Icon
+         view.setUint16(4, 1, true); // Count: 1
+         
+         // Dir Entry
+         const w = finalCanvas.width >= 256 ? 0 : finalCanvas.width;
+         const h = finalCanvas.height >= 256 ? 0 : finalCanvas.height;
+         view.setUint8(6, w);
+         view.setUint8(7, h);
+         view.setUint8(8, 0); // Palette
+         view.setUint8(9, 0); // Reserved
+         view.setUint16(10, 1, true); // Planes
+         view.setUint16(12, 32, true); // BPP
+         view.setUint32(14, pngBytes.length, true);
+         view.setUint32(18, 22, true); // Offset
+
+         blob = new Blob([header, pngBytes], { type: 'image/x-icon' });
+         break;
+      }
       default: blob = new Blob([]);
     }
     return URL.createObjectURL(blob);
@@ -224,6 +268,7 @@ export const downloadResult = (dataUrl: string, originalName: string, targetForm
   else if (targetFormat === ImageFormat.RAW) ext = 'bin';
   else if (targetFormat === ImageFormat.AVIF) ext = 'avif';
   else if (targetFormat === ImageFormat.HEIC) ext = 'heic';
+  else if (targetFormat === ImageFormat.ICO) ext = 'ico';
   
   // Audio
   else if (targetFormat === AudioFormat.MP3 || targetFormat === 'audio/mpeg') ext = 'mp3';

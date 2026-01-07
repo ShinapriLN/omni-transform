@@ -1,7 +1,7 @@
 import { ToolDefinition, ToolCategory, ImageFormat, AudioFormat } from './types';
 
 export const SUPPORTED_IMAGE_INPUTS = [
-  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/avif', 'image/svg+xml'
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/avif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'
 ];
 
 export const SUPPORTED_AUDIO_INPUTS = [
@@ -20,6 +20,7 @@ const IMAGE_OUTPUTS = [
   { label: 'JPG', value: ImageFormat.JPEG },
   { label: 'PNG', value: ImageFormat.PNG },
   { label: 'WEBP', value: ImageFormat.WEBP },
+  { label: 'ICO (Icon)', value: ImageFormat.ICO },
   { label: 'GIF', value: ImageFormat.GIF },
   { label: 'BMP', value: ImageFormat.BMP },
   { label: 'TIFF', value: ImageFormat.TIFF },
@@ -96,7 +97,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     id: 'image-converter',
     label: 'Image Converter',
-    description: 'Convert between PNG, JPG, WEBP, and more.',
+    description: 'Convert between PNG, JPG, ICO, WEBP, and more.',
     category: ToolCategory.IMAGE,
     acceptedMimeTypes: SUPPORTED_IMAGE_INPUTS,
     outputFormatOptions: IMAGE_OUTPUTS,

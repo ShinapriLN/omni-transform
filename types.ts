@@ -40,7 +40,8 @@ export enum ImageFormat {
   TIFF = 'image/tiff',
   EPS = 'application/postscript',
   RAW = 'application/octet-stream',
-  SVG = 'image/svg+xml'
+  SVG = 'image/svg+xml',
+  ICO = 'image/x-icon'
 }
 
 export enum AudioFormat {
