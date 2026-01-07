@@ -2,7 +2,6 @@ export enum ToolCategory {
   VIDEO_AUDIO = 'Video & Audio',
   IMAGE = 'Image',
   PDF_DOCS = 'PDF & Documents',
-  AI_TOOLS = 'AI & Code',
   GIF = 'GIF',
   UTILITIES = 'Utilities',
   DATA_TEXT = 'Text & Data',
@@ -16,7 +15,7 @@ export interface ToolDefinition {
   category: ToolCategory;
   acceptedMimeTypes: string[];
   outputFormatOptions?: { label: string; value: string }[];
-  handlerType: 'image' | 'audio' | 'video' | 'pdf' | 'unit' | 'gemini_text' | 'color_picker' | 'youtube_downloader' | 'vocal_separator' | 'code_morph' | 'qr_code' | 'url_shortener' | 'base_converter' | 'text_transformer' | 'image_filter' | 'background_remover';
+  handlerType: 'image' | 'audio' | 'video' | 'pdf' | 'unit' | 'color_picker' | 'youtube_downloader' | 'vocal_separator' | 'qr_code' | 'url_shortener' | 'base_converter' | 'text_transformer' | 'image_filter' | 'background_remover';
 }
 
 export enum TransformMode {
@@ -25,7 +24,6 @@ export enum TransformMode {
   VIDEO = 'VIDEO',
   PDF = 'PDF',
   UNIT = 'UNIT',
-  CODE = 'CODE',
   TEXT = 'TEXT'
 }
 

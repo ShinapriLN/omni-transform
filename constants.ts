@@ -24,7 +24,6 @@ const IMAGE_OUTPUTS = [
   { label: 'GIF', value: ImageFormat.GIF },
   { label: 'BMP', value: ImageFormat.BMP },
   { label: 'TIFF', value: ImageFormat.TIFF },
-  { label: 'SVG (Vector)', value: ImageFormat.SVG },
 ];
 
 const AUDIO_OUTPUTS = [
@@ -34,17 +33,6 @@ const AUDIO_OUTPUTS = [
   { label: 'AAC', value: AudioFormat.AAC },
   { label: 'OGG', value: AudioFormat.OGG },
   { label: 'M4A', value: AudioFormat.M4A },
-];
-
-const CODE_LANGUAGES = [
-    { label: 'JavaScript', value: 'JavaScript' },
-    { label: 'TypeScript', value: 'TypeScript' },
-    { label: 'Python', value: 'Python' },
-    { label: 'Java', value: 'Java' },
-    { label: 'C++', value: 'C++' },
-    { label: 'Go', value: 'Go' },
-    { label: 'Rust', value: 'Rust' },
-    { label: 'Swift', value: 'Swift' },
 ];
 
 const TEXT_CASES = [
@@ -101,15 +89,6 @@ export const TOOLS: ToolDefinition[] = [
     category: ToolCategory.IMAGE,
     acceptedMimeTypes: SUPPORTED_IMAGE_INPUTS,
     outputFormatOptions: IMAGE_OUTPUTS,
-    handlerType: 'image'
-  },
-  {
-    id: 'png-to-svg',
-    label: 'PNG to SVG',
-    description: 'Vectorize raster images using AI.',
-    category: ToolCategory.IMAGE,
-    acceptedMimeTypes: ['image/png', 'image/jpeg'],
-    outputFormatOptions: [{ label: 'SVG', value: ImageFormat.SVG }],
     handlerType: 'image'
   },
   {
@@ -181,26 +160,6 @@ export const TOOLS: ToolDefinition[] = [
     category: ToolCategory.UTILITIES,
     acceptedMimeTypes: [],
     handlerType: 'base_converter'
-  },
-
-  // === AI & CODE ===
-  {
-    id: 'code-morph',
-    label: 'Code Morph',
-    description: 'Transform code from one language to another using AI.',
-    category: ToolCategory.AI_TOOLS,
-    acceptedMimeTypes: [],
-    outputFormatOptions: CODE_LANGUAGES,
-    handlerType: 'code_morph'
-  },
-  {
-    id: 'vision-scribe',
-    label: 'Vision Scribe',
-    description: 'Transform images into detailed text descriptions.',
-    category: ToolCategory.AI_TOOLS,
-    acceptedMimeTypes: SUPPORTED_IMAGE_INPUTS,
-    outputFormatOptions: [{ label: 'Plain Text', value: 'text/plain' }],
-    handlerType: 'gemini_text'
   },
 
   // === VIDEO & AUDIO ===
@@ -287,24 +246,6 @@ export const TOOLS: ToolDefinition[] = [
     acceptedMimeTypes: SUPPORTED_IMAGE_INPUTS,
     outputFormatOptions: [{ label: 'PDF', value: 'application/pdf' }],
     handlerType: 'pdf'
-  },
-  {
-    id: 'pdf-to-text',
-    label: 'PDF to Text',
-    description: 'Extract text content from PDF using AI.',
-    category: ToolCategory.PDF_DOCS,
-    acceptedMimeTypes: PDF_INPUTS,
-    outputFormatOptions: [{ label: 'Text', value: 'text/plain' }],
-    handlerType: 'gemini_text'
-  },
-  {
-    id: 'pdf-to-word',
-    label: 'PDF to Word',
-    description: 'Convert PDF to editable Word doc (via AI).',
-    category: ToolCategory.PDF_DOCS,
-    acceptedMimeTypes: PDF_INPUTS,
-    outputFormatOptions: [{ label: 'Word (DOCX)', value: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
-    handlerType: 'gemini_text' 
   },
 
   // === GIF ===

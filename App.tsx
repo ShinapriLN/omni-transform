@@ -9,13 +9,11 @@ import { AudioVisualizer } from './components/AudioVisualizer';
 import { FileData, ToolDefinition, ProcessingState, TransformMode, ToolCategory, AudioFormat } from './types';
 import { convertRasterToRaster, downloadResult, applyImageFilter, removeBackground, getPixelColor } from './utils/imageUtils';
 import { convertAudio, separateAudio } from './utils/audioUtils';
-import { transformImageToSvg } from './services/geminiService';
 import { convertUnit, UNITS, UnitCategory } from './utils/mathUtils';
 import { transformTextCase, transformDataFormat } from './utils/textUtils';
 import { imageToPdf } from './utils/pdfUtils';
-import { GoogleGenAI } from "@google/genai";
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<ToolDefinition | null>(null);
   const [sourceFile, setSourceFile] = useState<FileData | null>(null);
   const [targetFormat, setTargetFormat] = useState<string>('');
@@ -154,7 +152,7 @@ const App: React.FC = () => {
     if (!selectedTool) return;
     if (selectedTool.handlerType === 'unit' || selectedTool.handlerType === 'base_converter') return;
     
-    const isTextMode = ['code_morph', 'qr_code', 'url_shortener', 'text_transformer'].includes(selectedTool.handlerType);
+    const isTextMode = ['qr_code', 'url_shortener', 'text_transformer'].includes(selectedTool.handlerType);
 
     // Check inputs based on tool type
     if (isTextMode && !textInput) return;
@@ -164,7 +162,6 @@ const App: React.FC = () => {
 
     try {
       let resultData: string = '';
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       // --- TEXT TRANSFORMER (Case / CSV / JSON) ---
       if (selectedTool.handlerType === 'text_transformer') {
@@ -200,43 +197,6 @@ const App: React.FC = () => {
           resultData = URL.createObjectURL(blob);
       }
 
-      // --- CODE MORPH HANDLER ---
-      else if (selectedTool.handlerType === 'code_morph') {
-         setProcessState(prev => ({ ...prev, progress: 40 }));
-         const prompt = `Convert the following code to ${targetFormat}. Provide ONLY the converted code, no markdown fencing, no explanation.`;
-         
-         const resp = await ai.models.generateContent({
-             model: 'gemini-2.5-flash',
-             contents: {
-                 parts: [{ text: prompt + "\n\n" + textInput }]
-             }
-         });
-         
-         const convertedCode = resp.text || "// AI Translation failed";
-         const blob = new Blob([convertedCode], { type: 'text/plain' });
-         resultData = URL.createObjectURL(blob);
-      }
-
-      // --- GEMINI TEXT / VISION HANDLER ---
-      else if (selectedTool.handlerType === 'gemini_text') {
-        const prompt = selectedTool.id === 'vision-scribe' 
-             ? "Describe this image in high detail. Include main objects, setting, colors, and mood."
-             : "Extract all text from this file.";
-             
-        const resp = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: {
-                parts: [
-                    { inlineData: { data: sourceFile!.preview.split(',')[1], mimeType: sourceFile!.type } },
-                    { text: prompt }
-                ]
-            }
-        });
-        const text = resp.text || "No content generated.";
-        const blob = new Blob([text], { type: 'text/plain' });
-        resultData = URL.createObjectURL(blob);
-      }
-
       // --- YOUTUBE HANDLER ---
       else if (selectedTool.handlerType === 'youtube_downloader') {
         setProcessState(prev => ({ ...prev, progress: 30 }));
@@ -259,12 +219,7 @@ const App: React.FC = () => {
 
       // --- IMAGE HANDLER & FILTER ---
       else if (selectedTool.handlerType === 'image' || selectedTool.handlerType === 'image_filter') {
-        if (targetFormat === 'image/svg+xml') {
-           setProcessState(prev => ({ ...prev, progress: 30 }));
-           const svgCode = await transformImageToSvg(sourceFile!.preview, sourceFile!.type);
-           const blob = new Blob([svgCode], { type: 'image/svg+xml' });
-           resultData = URL.createObjectURL(blob);
-        } else if (selectedTool.handlerType === 'image_filter') {
+        if (selectedTool.handlerType === 'image_filter') {
            setProcessState(prev => ({ ...prev, progress: 30 }));
            resultData = await applyImageFilter(sourceFile!.preview, targetFormat);
         } else {
@@ -391,7 +346,6 @@ const App: React.FC = () => {
                       <div className={`p-3 rounded-xl ${
                           selectedTool.category === ToolCategory.VIDEO_AUDIO ? 'bg-purple-500/20 text-purple-400' :
                           selectedTool.category === ToolCategory.IMAGE ? 'bg-indigo-500/20 text-indigo-400' :
-                          selectedTool.category === ToolCategory.AI_TOOLS ? 'bg-blue-500/20 text-blue-400' :
                           selectedTool.category === ToolCategory.UTILITIES ? 'bg-orange-500/20 text-orange-400' :
                           selectedTool.category === ToolCategory.DATA_TEXT ? 'bg-pink-500/20 text-pink-400' :
                           'bg-emerald-500/20 text-emerald-400'
@@ -502,253 +456,240 @@ const App: React.FC = () => {
                                 <option value={10}>Decimal (10)</option>
                                 <option value={16}>Hexadecimal (16)</option>
                              </select>
-                             <div className="w-full bg-gray-900/50 border border-gray-700 rounded-lg p-4 font-mono text-xl text-emerald-400 h-32 flex items-center overflow-x-auto">
-                               {baseState.result || '...'}
+                             <div className="w-full bg-gray-900/50 border border-gray-700 rounded-lg p-4 text-2xl font-mono text-emerald-400 h-32 overflow-y-auto break-all">
+                                {baseState.result || '...'}
                              </div>
                          </div>
                       </div>
                    </div>
-                ) : (selectedTool.handlerType === 'code_morph' || selectedTool.handlerType === 'qr_code' || selectedTool.handlerType === 'url_shortener' || selectedTool.handlerType === 'text_transformer') ? (
-                   /* TEXT/CODE INPUT WORKSPACE */
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-fit min-h-[400px]">
-                      <div className="flex flex-col h-full">
-                          <label className="text-sm text-gray-400 mb-2 font-medium">
-                            {selectedTool.handlerType === 'url_shortener' || selectedTool.id === 'url-to-qrcode' ? 'Enter URL' : 'Enter Text/Code'}
-                          </label>
-                          <textarea 
-                             className="flex-1 bg-gray-900 border border-gray-700 rounded-xl p-4 font-mono text-sm text-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none resize-none min-h-[200px]"
-                             placeholder={
-                               selectedTool.handlerType === 'url_shortener' ? "https://example.com/very/long/url..." : 
-                               selectedTool.id === 'json-csv-converter' ? '[{"name": "John", "age": 30}]' :
-                               "Type here..."
-                             }
-                             value={textInput}
-                             onChange={(e) => setTextInput(e.target.value)}
-                          />
-                      </div>
-                      <div className="flex flex-col h-full">
-                         {(selectedTool.handlerType === 'code_morph' || selectedTool.handlerType === 'text_transformer') && (
-                           <div className="flex items-center justify-between mb-2">
-                               <label className="text-sm text-gray-400 font-medium">Target Format</label>
-                               <select 
-                                  className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-xs text-white"
-                                  value={targetFormat}
-                                  onChange={(e) => setTargetFormat(e.target.value)}
-                                >
-                                    {selectedTool.outputFormatOptions?.map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                </select>
-                           </div>
-                         )}
-                         
-                         {processState.result ? (
-                             <div className="flex-1 bg-black/40 border border-gray-700 rounded-xl overflow-hidden relative group min-h-[200px] flex items-center justify-center">
-                                {selectedTool.handlerType === 'qr_code' ? (
-                                    <div className="p-6 bg-white rounded-lg">
-                                       <img src={processState.result} alt="QR Code" className="w-48 h-48" />
-                                    </div>
-                                ) : (
-                                  <iframe 
-                                    src={processState.result} 
-                                    className="w-full h-full p-4 font-mono text-sm text-emerald-400 bg-transparent"
-                                    title="Result"
-                                  />
-                                )}
-                                
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                   <Button 
-                                     onClick={() => downloadResult(processState.result!, selectedTool.id === 'qr_code' ? 'qrcode' : 'result', processState.resultType)}
-                                     className="text-xs py-1 px-3"
-                                   >Download</Button>
+                ) : selectedTool.handlerType === 'text_transformer' || selectedTool.handlerType === 'url_shortener' || selectedTool.handlerType === 'qr_code' ? (
+                   /* TEXT / UTILITY TOOLS */
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                         <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                             <h3 className="font-semibold text-white mb-4">Input</h3>
+                             <textarea 
+                                className="w-full h-48 bg-gray-900 border border-gray-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                placeholder="Enter text or URL here..."
+                                value={textInput}
+                                onChange={(e) => setTextInput(e.target.value)}
+                             />
+                             {selectedTool.outputFormatOptions && (
+                                <div className="mt-4">
+                                   <label className="text-sm text-gray-400 mb-2 block">Transform Mode</label>
+                                   <div className="flex flex-wrap gap-2">
+                                      {selectedTool.outputFormatOptions.map(opt => (
+                                         <button 
+                                            key={opt.value}
+                                            onClick={() => setTargetFormat(opt.value)}
+                                            className={`px-4 py-2 rounded-lg text-sm transition-all ${
+                                                targetFormat === opt.value ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                            }`}
+                                         >
+                                            {opt.label}
+                                         </button>
+                                      ))}
+                                   </div>
                                 </div>
+                             )}
+                             <Button 
+                               className="w-full mt-6"
+                               onClick={handleProcess}
+                               isLoading={processState.isProcessing}
+                               disabled={!textInput}
+                             >
+                               {selectedTool.label.includes('QR') ? 'Generate Code' : 'Transform'}
+                             </Button>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         {processState.result ? (
+                             <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 h-full flex flex-col animate-fade-in">
+                                <h3 className="font-semibold text-white mb-4">Result</h3>
+                                <div className="flex-1 flex flex-col items-center justify-center p-4 bg-gray-900/50 rounded-xl border border-dashed border-gray-700">
+                                   {selectedTool.handlerType === 'qr_code' ? (
+                                      <img src={processState.result} alt="QR Code" className="w-48 h-48 rounded-lg shadow-lg" />
+                                   ) : (
+                                      <pre className="w-full h-full text-sm text-emerald-400 overflow-auto whitespace-pre-wrap font-mono">
+                                          {selectedTool.handlerType === 'url_shortener' ? (
+                                              <a href={processState.result} target="_blank" rel="noreferrer" className="underline hover:text-emerald-300">
+                                                  {processState.result}
+                                              </a>
+                                          ) : selectedTool.id === 'json-csv-converter' ? (
+                                            /* For blob URL, we can't show text easily without fetch, so just show download button usually. 
+                                               But for this demo we might just show "Ready"
+                                            */
+                                            "File processed. Click download."
+                                          ) : (
+                                              /* For direct text transformers in this demo we used object URLs. 
+                                                 To simplify, we'd need to read the blob back. 
+                                                 But for now let's just show download.
+                                              */
+                                              "Transformation Complete."
+                                          )}
+                                      </pre>
+                                   )}
+                                </div>
+                                <Button 
+                                   variant="secondary"
+                                   className="w-full mt-4"
+                                   onClick={() => downloadResult(processState.result!, `transformed_${Date.now()}`, processState.resultType)}
+                                >
+                                   Download Result
+                                </Button>
                              </div>
                          ) : (
-                             <div className="flex-1 bg-gray-800/50 border border-gray-700 border-dashed rounded-xl flex items-center justify-center text-gray-500 text-sm min-h-[200px]">
-                                {processState.isProcessing ? 'Processing...' : 'Result will appear here'}
+                             <div className="h-full border-2 border-dashed border-gray-800 rounded-2xl flex items-center justify-center text-gray-600">
+                                Result will appear here
                              </div>
                          )}
-
-                         <div className="mt-4">
-                            <Button 
-                               onClick={handleProcess} 
-                               isLoading={processState.isProcessing} 
-                               className="w-full"
-                               disabled={!textInput}
-                            >
-                               {processState.isProcessing ? 'Processing...' : selectedTool.id === 'link-shortener' ? 'Shorten URL' : selectedTool.handlerType === 'qr_code' ? 'Generate QR' : 'Transform'}
-                            </Button>
-                         </div>
                       </div>
                    </div>
                 ) : (
-                   /* GENERIC FILE WORKSPACE (Images, Video, Audio, PDF) */
+                   /* MEDIA / FILE TOOLS */
                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                     <div className="space-y-6">
-                       {!sourceFile ? (
-                           selectedTool.handlerType === 'youtube_downloader' ? (
+                      <div className="space-y-6">
+                         {selectedTool.handlerType === 'youtube_downloader' ? (
                              <UrlInput onUrlSubmit={handleUrlSubmit} />
-                           ) : (
+                         ) : (
                              <FileUploader 
-                               mode={selectedTool.category === ToolCategory.VIDEO_AUDIO ? TransformMode.VIDEO : TransformMode.IMAGE} 
-                               onFileSelect={setSourceFile} 
+                               mode={
+                                  selectedTool.category === ToolCategory.VIDEO_AUDIO ? TransformMode.AUDIO : 
+                                  selectedTool.category === ToolCategory.IMAGE ? TransformMode.IMAGE : 
+                                  TransformMode.IMAGE
+                               }
+                               onFileSelect={setSourceFile}
                              />
-                           )
-                       ) : (
-                          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl">
-                             <div className="flex justify-between items-center mb-4">
-                                <span className="text-sm font-mono bg-gray-900 px-3 py-1.5 rounded-md text-gray-300 truncate max-w-[200px] border border-gray-700">{sourceFile.file.name}</span>
-                                <button onClick={reset} className="text-red-400 text-xs hover:text-red-300 font-medium px-2 py-1 hover:bg-red-500/10 rounded transition-colors">Clear</button>
-                             </div>
-                             
-                             <div className="bg-gray-900 rounded-xl overflow-hidden mb-6 flex items-center justify-center min-h-[250px] relative group border border-gray-800">
-                                 {selectedTool.handlerType === 'color_picker' ? (
-                                     <ColorPicker imageSrc={sourceFile.preview} />
-                                 ) : sourceFile.type === 'video/youtube' ? (
-                                    <>
-                                      <img src={sourceFile.preview} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" alt="YT Thumb" />
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-12 bg-red-600 rounded-xl flex items-center justify-center shadow-xl">
-                                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                        </div>
-                                      </div>
-                                    </>
-                                 ) : sourceFile.type.startsWith('image') ? (
-                                    <div className="relative group w-full">
-                                      {/* Specific Click Interaction for Background Remover */}
-                                      {selectedTool.handlerType === 'background_remover' && (
-                                         <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur text-xs px-3 py-1.5 rounded-lg border border-gray-600 pointer-events-none">
-                                            {bgRemoveState.hasPicked ? 'Color Picked' : 'Click image to pick color'}
-                                         </div>
-                                      )}
+                         )}
 
-                                      <img 
-                                        src={sourceFile.preview} 
-                                        ref={bgImgRef}
-                                        className={`max-h-64 mx-auto object-contain ${selectedTool.handlerType === 'background_remover' ? 'cursor-crosshair' : ''}`} 
-                                        alt="Preview" 
-                                        onClick={selectedTool.handlerType === 'background_remover' ? handleImageClick : undefined}
-                                      />
-                                    </div>
-                                 ) : (
-                                    <div className="text-center p-8">
-                                       <svg className="w-16 h-16 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                                       <p className="text-gray-500 font-medium">Audio/Video Loaded</p>
-                                    </div>
-                                 )}
-                             </div>
-
-                             {selectedTool.handlerType === 'background_remover' && (
-                               <div className="mb-6 p-4 bg-gray-900 rounded-xl border border-gray-800">
-                                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-4">
-                                    Removal Settings
-                                  </label>
-                                  <div className="flex items-center gap-4 mb-4">
-                                      <div className="w-10 h-10 rounded-lg border border-gray-600 shadow-sm" style={{ backgroundColor: bgRemoveState.hex }}></div>
-                                      <div className="flex-1">
-                                          <p className="text-sm font-medium text-gray-300">Target Color</p>
-                                          <p className="text-xs text-gray-500">{bgRemoveState.hex}</p>
-                                      </div>
-                                  </div>
-                                  <div>
-                                     <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                         <span>Tolerance</span>
-                                         <span>{bgRemoveState.tolerance}%</span>
+                         {sourceFile && (
+                            <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 animate-fade-in">
+                               <div className="flex items-center gap-4 mb-6">
+                                  {sourceFile.type.startsWith('image') || sourceFile.type.includes('youtube') ? (
+                                     <img src={sourceFile.preview} alt="preview" className="w-16 h-16 rounded-lg object-cover bg-black" />
+                                  ) : (
+                                     <div className="w-16 h-16 rounded-lg bg-purple-900/50 flex items-center justify-center">
+                                        <svg className="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                                      </div>
-                                     <input 
-                                        type="range" 
-                                        min="1" 
-                                        max="100" 
-                                        value={bgRemoveState.tolerance} 
-                                        onChange={(e) => setBgRemoveState(prev => ({ ...prev, tolerance: parseInt(e.target.value) }))}
-                                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                                     />
+                                  )}
+                                  <div className="overflow-hidden">
+                                     <h4 className="font-medium text-white truncate w-full">{sourceFile.file.name}</h4>
+                                     <p className="text-xs text-gray-500 uppercase">{sourceFile.type || 'Unknown Type'}</p>
                                   </div>
+                                  <button onClick={reset} className="ml-auto text-gray-500 hover:text-red-400">
+                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
                                </div>
-                             )}
 
-                             {selectedTool.outputFormatOptions && (
-                               <div className="mb-6">
-                                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
-                                    {selectedTool.handlerType === 'gemini_text' ? 'Output' : selectedTool.handlerType === 'image_filter' ? 'Select Filter' : 'Target Format'}
-                                  </label>
-                                  <div className="relative">
-                                    <select 
-                                      className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white appearance-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                                      value={targetFormat}
-                                      onChange={(e) => setTargetFormat(e.target.value)}
-                                    >
+                               {selectedTool.handlerType === 'background_remover' && (
+                                   <div className="mb-6">
+                                       <p className="text-sm text-gray-400 mb-2">1. Click on the background color in the image below:</p>
+                                       <ColorPicker imageSrc={sourceFile.preview} />
+                                       
+                                       <div className="mt-4">
+                                            <p className="text-sm text-gray-400 mb-2">2. Adjust Tolerance: {bgRemoveState.tolerance}%</p>
+                                            <input 
+                                              type="range" 
+                                              min="1" max="100" 
+                                              value={bgRemoveState.tolerance} 
+                                              onChange={(e) => setBgRemoveState(prev => ({ ...prev, tolerance: parseInt(e.target.value) }))}
+                                              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                       </div>
+                                       {!bgRemoveState.hasPicked && (
+                                           <p className="text-xs text-yellow-500 mt-2">Please pick a color first.</p>
+                                       )}
+                                   </div>
+                               )}
+
+                               {selectedTool.outputFormatOptions && (
+                                  <div className="mb-6">
+                                     <label className="text-sm text-gray-400 mb-3 block font-medium">Select Output Format</label>
+                                     <div className="grid grid-cols-3 gap-2">
                                         {selectedTool.outputFormatOptions.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                           <button 
+                                              key={opt.value}
+                                              onClick={() => setTargetFormat(opt.value)}
+                                              className={`px-3 py-2 rounded-lg text-sm border transition-all ${
+                                                 targetFormat === opt.value 
+                                                   ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20' 
+                                                   : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-700'
+                                              }`}
+                                           >
+                                              {opt.label}
+                                           </button>
                                         ))}
-                                    </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                                    </div>
+                                     </div>
                                   </div>
-                               </div>
-                             )}
+                               )}
 
-                             {selectedTool.handlerType !== 'color_picker' && (
-                                <Button onClick={handleProcess} isLoading={processState.isProcessing} className="w-full text-lg h-12">
-                                   {processState.isProcessing ? 'Processing...' : (selectedTool.handlerType === 'youtube_downloader' ? 'Prepare Download' : selectedTool.id === 'vision-scribe' ? 'Analyze Image' : selectedTool.handlerType === 'image_filter' ? 'Apply Filter' : selectedTool.handlerType === 'background_remover' ? 'Remove Background' : 'Convert Now')}
+                               <Button 
+                                  className="w-full"
+                                  onClick={handleProcess}
+                                  isLoading={processState.isProcessing}
+                                  disabled={selectedTool.handlerType === 'background_remover' && !bgRemoveState.hasPicked}
+                               >
+                                  Start Processing
+                               </Button>
+                            </div>
+                         )}
+                      </div>
+
+                      <div className="space-y-6">
+                         {processState.result ? (
+                             <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 animate-fade-in h-full flex flex-col">
+                                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                   <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                   Success!
+                                </h3>
+                                
+                                <div className="flex-1 bg-black/40 rounded-xl overflow-hidden border border-gray-700 flex items-center justify-center relative min-h-[200px]">
+                                   {processState.resultType.startsWith('image') ? (
+                                      <div className="relative w-full h-full p-4 flex items-center justify-center">
+                                          {/* Transparency Grid */}
+                                          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px' }}></div>
+                                          <img src={processState.result} alt="Result" className="max-w-full max-h-[300px] relative z-10 rounded shadow-2xl" />
+                                      </div>
+                                   ) : processState.resultType.startsWith('audio') ? (
+                                      <div className="w-full p-6">
+                                          <AudioVisualizer audioSrc={processState.result} />
+                                      </div>
+                                   ) : (
+                                      <div className="text-gray-400 flex flex-col items-center">
+                                          <svg className="w-12 h-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                          <span>File Ready</span>
+                                      </div>
+                                   )}
+                                </div>
+
+                                <Button 
+                                   variant="primary"
+                                   className="w-full mt-6"
+                                   onClick={() => downloadResult(processState.result!, sourceFile!.file.name, processState.resultType)}
+                                >
+                                   Download {selectedTool.outputFormatOptions?.find(o => o.value === targetFormat)?.label || 'File'}
                                 </Button>
-                             )}
-                          </div>
-                       )}
-                     </div>
-
-                     {/* Output Panel */}
-                     {processState.result && (
-                        <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl animate-fade-in-up h-fit">
-                           <div className="flex items-center gap-3 mb-6 p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-xl text-emerald-400">
-                              <div className="p-2 bg-emerald-500 rounded-full text-white shadow-lg shadow-emerald-500/30">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                              </div>
-                              <span className="font-bold">Success! Result ready.</span>
-                           </div>
-                           
-                           <div className="bg-gray-900 rounded-xl p-6 mb-6 border border-gray-800 text-center min-h-[200px] flex flex-col items-center justify-center">
-                              {processState.resultType.startsWith('video') ? (
-                                 <video controls src={processState.result} className="w-full rounded-lg max-h-60 shadow-lg" />
-                              ) : processState.resultType.startsWith('audio') ? (
-                                 <div className="w-full">
-                                    {/* USE AUDIO VISUALIZER HERE */}
-                                   <AudioVisualizer audioSrc={processState.result} />
-                                 </div>
-                              ) : processState.resultType === 'text/plain' || processState.resultType === 'text/csv' || processState.resultType === 'application/json' ? (
-                                  <iframe src={processState.result} className="w-full h-64 border-none bg-transparent font-mono text-sm text-gray-300" title="Text Result" />
-                              ) : (
-                                  <>
-                                    {/* Checkboard background for transparency result */}
-                                    <div className="relative inline-block">
-                                        {selectedTool.handlerType === 'background_remover' && (
-                                            <div className="absolute inset-0 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] opacity-20 rounded-lg"></div>
-                                        )}
-                                        <img src={processState.result} className="relative z-10 max-h-56 mx-auto object-contain mb-4 shadow-lg rounded-lg" alt="Result" />
-                                    </div>
-                                    <div className="text-gray-500 text-xs font-mono bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
-                                      {(processState.result.length / 1024).toFixed(1)} KB
-                                    </div>
-                                  </>
-                              )}
-                           </div>
-                           
-                           {selectedTool.handlerType === 'youtube_downloader' && (
-                              <div className="mb-6 text-xs text-yellow-500/90 bg-yellow-500/10 p-4 rounded-lg border border-yellow-500/20 flex gap-3 items-start">
-                                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <p><strong>Demo Mode:</strong> We've prepared a high-quality sample file for you to test the download functionality, as direct YouTube downloads are restricted in browsers.</p>
-                              </div>
-                           )}
-
-                           <Button 
-                              onClick={() => downloadResult(processState.result!, sourceFile?.file.name || 'output', processState.resultType)}
-                              className="w-full bg-emerald-600 hover:bg-emerald-500 h-12 text-lg shadow-emerald-900/20"
-                           >
-                              Download File
-                           </Button>
-                        </div>
-                     )}
+                             </div>
+                         ) : (
+                             <div className={`h-full border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center text-gray-600 p-8 transition-colors ${processState.isProcessing ? 'bg-gray-800/50 border-indigo-500/30' : ''}`}>
+                                {processState.isProcessing ? (
+                                   <div className="text-center">
+                                      <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4"></div>
+                                      <p className="text-indigo-400 font-medium">Processing...</p>
+                                      <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
+                                   </div>
+                                ) : (
+                                   <>
+                                      <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                                         <svg className="w-8 h-8 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M4 16v1.79c0 .45.54.84 1 .84h14c.46 0 1-.39 1-.84V16M12 3v10m-3-3l3 3 3-3"/></svg>
+                                      </div>
+                                      <p>Result preview will appear here</p>
+                                   </>
+                                )}
+                             </div>
+                         )}
+                      </div>
                    </div>
                 )}
              </div>
@@ -758,5 +699,3 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-export default App;
